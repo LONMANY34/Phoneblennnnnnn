@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Phone Cam Control</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: #0d0e14;
+    --surface: #16181f;
+    --border: #2a2d3a;
+    --accent: #5b7cf7;
+    --accent2: #a78bfa;
+    --green: #22d3a5;
+    --red: #f75b5b;
+    --text: #e8eaf0;
+    --muted: #6b7280;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    padding: 16px;
+    gap: 12px;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 4px 0 8px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .logo {
+    width: 36px; height: 36px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+  }
+
+  h1 { font-size: 18px; font-weight: 700; letter-spacing: -0.3px; }
+  h1 span { color: var(--accent2); }
+
+  /* Status pill */
+  .status-pill {
+    margin-left: auto;
+    display: flex; align-items: center; gap: 6px;
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    transition: all 0.3s;
+  }
+  .status-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--muted);
+    transition: background 0.3s;
+  }
+  .status-pill.connected { border-color: var(--green); color: var(--green); }
+  .status-pill.connected .status-dot { background: var(--green); box-shadow: 0 0 6px var(--green); }
+  .status-pill.error { border-color: var(--red); color: var(--red); }
+  .status-pill.error .status-dot { background: var(--red); }
+
+  /* Cards */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 14px 16px;
+  }
+
+  .card-title {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--muted);
+    margin-bottom: 10px;
+  }
+
+  /* Connection inputs */
+  .input-row { display: flex; gap: 8px; align-items: center; }
+
+  input[type="text"], input[type="number"] {
+    flex: 1;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 9px;
+    padding: 10px 12px;
+    font-size: 14px;
+    outline: none;
+    font-family: 'SF Mono', monospace;
+    transition: border-color 0.2s;
+  }
+  input:focus { border-color: var(--accent); }
+
+  button {
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    color: white;
+    border: none;
+    border-radius: 9px;
+    padding: 10px 18px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.2s, transform 0.1s;
+    white-space: nowrap;
+  }
+  button:active { transform: scale(0.96); opacity: 0.85; }
+  button.danger {
+    background: linear-gradient(135deg, #f75b5b, #c0392b);
+  }
+
+  /* Axes display */
+  .axes-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 8px;
+    margin-top: 2px;
+  }
+
+  .axis-cell {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 8px;
+    text-align: center;
+  }
+
+  .axis-label {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    margin-bottom: 4px;
+  }
+
+  .axis-cell.ax { border-top: 2px solid #f75b5b; }
+  .axis-cell.ay { border-top: 2px solid var(--green); }
+  .axis-cell.az { border-top: 2px solid var(--accent); }
+  .axis-cell.ax .axis-label { color: #f75b5b; }
+  .axis-cell.ay .axis-label { color: var(--green); }
+  .axis-cell.az .axis-label { color: var(--accent); }
+
+  .axis-value {
+    font-size: 17px;
+    font-weight: 700;
+    font-family: 'SF Mono', monospace;
+    letter-spacing: -0.5px;
+  }
+
+  .axis-unit {
+    font-size: 10px;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+
+  /* Visual orientation ball */
+  .orient-wrap {
+    display: flex;
+    justify-content: center;
+    padding: 8px 0 4px;
+  }
+
+  .orient-ball-container {
+    width: 100px; height: 100px;
+    position: relative;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  canvas#ball {
+    border-radius: 50%;
+    border: 2px solid var(--border);
+  }
+
+  /* Gyro toggle */
+  .big-btn {
+    width: 100%;
+    padding: 16px;
+    font-size: 16px;
+    border-radius: 12px;
+    letter-spacing: 0.2px;
+  }
+
+  /* Calibrate */
+  .calibrate-row {
+    display: flex; gap: 8px;
+  }
+  .calibrate-row button {
+    flex: 1;
+    padding: 10px 8px;
+    font-size: 13px;
+  }
+
+  /* Stats bar */
+  .stats-bar {
+    display: flex;
+    gap: 12px;
+    padding: 8px 12px;
+    background: var(--bg);
+    border-radius: 9px;
+    border: 1px solid var(--border);
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .stat { display: flex; gap: 4px; align-items: center; }
+  .stat strong { color: var(--text); font-family: monospace; }
+
+  .msg-log {
+    font-size: 11px;
+    color: var(--muted);
+    font-family: monospace;
+    min-height: 16px;
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">📷</div>
+  <h1>Phone <span>Cam</span></h1>
+  <div class="status-pill" id="statusPill">
+    <div class="status-dot"></div>
+    <span id="statusText">Offline</span>
+  </div>
+</header>
+
+<!-- Connection -->
+<div class="card">
+  <div class="card-title">🔌 Connect to Blender</div>
+  <div class="input-row" style="margin-bottom:8px">
+    <input type="text" id="ipInput" placeholder="192.168.x.x" value="">
+    <input type="number" id="portInput" value="8765" style="flex:0 0 80px; text-align:center">
+  </div>
+  <div class="input-row">
+    <button id="connectBtn" class="big-btn" onclick="toggleConnect()">▶ Connect</button>
+  </div>
+</div>
+
+<!-- Orientation visual -->
+<div class="card">
+  <div class="card-title">📐 Orientation</div>
+  <div class="orient-wrap">
+    <div class="orient-ball-container">
+      <canvas id="ball" width="100" height="100"></canvas>
+    </div>
+  </div>
+  <div class="axes-grid">
+    <div class="axis-cell ax">
+      <div class="axis-label">Pitch (β)</div>
+      <div class="axis-value" id="valBeta">0.0</div>
+      <div class="axis-unit">degrees</div>
+    </div>
+    <div class="axis-cell ay">
+      <div class="axis-label">Yaw (α)</div>
+      <div class="axis-value" id="valAlpha">0.0</div>
+      <div class="axis-unit">degrees</div>
+    </div>
+    <div class="axis-cell az">
+      <div class="axis-label">Roll (γ)</div>
+      <div class="axis-value" id="valGamma">0.0</div>
+      <div class="axis-unit">degrees</div>
+    </div>
+  </div>
+</div>
+
+<!-- Controls -->
+<div class="card">
+  <div class="card-title">🎛 Controls</div>
+  <div class="calibrate-row" style="margin-bottom:8px">
+    <button onclick="calibrate()" style="background: linear-gradient(135deg,#22d3a5,#059669)">⊕ Calibrate</button>
+    <button onclick="resetCamera()" class="danger">↺ Reset Cam</button>
+  </div>
+  <div class="stats-bar">
+    <div class="stat">FPS <strong id="fpsVal">0</strong></div>
+    <div class="stat">Sent <strong id="sentVal">0</strong></div>
+    <div class="stat">Mode <strong id="modeVal">—</strong></div>
+  </div>
+</div>
+
+<div class="msg-log" id="msgLog">Waiting for sensor permission...</div>
+
+<script>
+// ── State ──
+let ws = null;
+let connected = false;
+let sensorMode = "none";
+let sendCount = 0;
+let fpsCount = 0;
+let fpsTimer = null;
+
+// Calibration offsets
+let calAlpha = 0, calBeta = 0, calGamma = 0;
+let calQw = 1, calQx = 0, calQy = 0, calQz = 0;
+let isCalibrated = false;
+
+// Latest raw values
+let rawAlpha = 0, rawBeta = 0, rawGamma = 0;
+let rawQw = 1, rawQx = 0, rawQy = 0, rawQz = 0;
+let hasQuat = false;
+
+// ── WebSocket ──
+function toggleConnect() {
+  if (connected) {
+    disconnect();
+  } else {
+    connect();
+  }
+}
+
+function connect() {
+  const ip   = document.getElementById("ipInput").value.trim();
+  const port = document.getElementById("portInput").value.trim();
+  if (!ip) { setMsg("⚠️ กรอก IP ของ PC ก่อน"); return; }
+
+  const url = `ws://${ip}:${port}`;
+  setMsg(`กำลังเชื่อมต่อ ${url}...`);
+
+  try {
+    ws = new WebSocket(url);
+  } catch(e) {
+    setMsg("❌ URL ไม่ถูกต้อง");
+    return;
+  }
+
+  ws.onopen = () => {
+    connected = true;
+    setStatus("connected", "Connected");
+    document.getElementById("connectBtn").textContent = "■ Disconnect";
+    document.getElementById("connectBtn").classList.add("danger");
+    setMsg("✅ เชื่อมต่อสำเร็จ! ขยับโทรศัพท์ได้เลย");
+    requestSensor();
+    startFPSCounter();
+  };
+
+  ws.onclose = () => {
+    connected = false;
+    setStatus("", "Offline");
+    document.getElementById("connectBtn").textContent = "▶ Connect";
+    document.getElementById("connectBtn").classList.remove("danger");
+    setMsg("🔌 ตัดการเชื่อมต่อแล้ว");
+    stopFPSCounter();
+  };
+
+  ws.onerror = () => {
+    setStatus("error", "Error");
+    setMsg("❌ เชื่อมต่อไม่ได้ — ตรวจสอบ IP และ Blender server");
+  };
+}
+
+function disconnect() {
+  if (ws) { ws.close(); ws = null; }
+}
+
+function send(data) {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify(data));
+    sendCount++;
+    fpsCount++;
+    document.getElementById("sentVal").textContent = sendCount;
+  }
+}
+
+// ── Sensors ──
+function requestSensor() {
+  // Try DeviceOrientationEvent (gyro/compass) — needs permission on iOS 13+
+  if (typeof DeviceOrientationEvent !== "undefined") {
+    if (typeof DeviceOrientationEvent.requestPermission === "function") {
+      // iOS 13+
+      DeviceOrientationEvent.requestPermission()
+        .then(state => {
+          if (state === "granted") startOrientation();
+          else setMsg("⚠️ Permission denied — iOS ต้องกดอนุญาต sensor");
+        })
+        .catch(() => setMsg("⚠️ ไม่สามารถขอ permission ได้"));
+    } else {
+      // Android / other
+      startOrientation();
+    }
+  } else {
+    setMsg("❌ เบราว์เซอร์นี้ไม่รองรับ gyroscope");
+  }
+
+  // Also try absolute orientation sensor (quaternion) if available
+  if ("AbsoluteOrientationSensor" in window) {
+    try {
+      const sensor = new AbsoluteOrientationSensor({ frequency: 60, referenceFrame: "device" });
+      sensor.addEventListener("reading", () => {
+        // quaternion: [x, y, z, w]
+        const q = sensor.quaternion;
+        rawQw = q[3]; rawQx = q[0]; rawQy = q[1]; rawQz = q[2];
+        hasQuat = true;
+        sendQuat();
+        document.getElementById("modeVal").textContent = "Quat";
+      });
+      sensor.addEventListener("error", () => {
+        hasQuat = false;
+        document.getElementById("modeVal").textContent = "Euler";
+      });
+      sensor.start();
+    } catch(e) {
+      hasQuat = false;
+    }
+  }
+}
+
+function startOrientation() {
+  window.addEventListener("deviceorientation", handleOrientation, true);
+  document.getElementById("modeVal").textContent = "Euler";
+  setMsg("📡 รับ sensor data แล้ว");
+}
+
+function handleOrientation(e) {
+  rawAlpha = e.alpha || 0;
+  rawBeta  = e.beta  || 0;
+  rawGamma = e.gamma || 0;
+
+  updateDisplay();
+
+  // If quaternion sensor is active, it handles sending
+  if (!hasQuat) {
+    let alpha = rawAlpha - calAlpha;
+    let beta  = rawBeta  - calBeta;
+    let gamma = rawGamma - calGamma;
+
+    send({ alpha, beta, gamma });
+  }
+}
+
+function sendQuat() {
+  if (!connected) return;
+
+  // Apply calibration (inverse rotation)
+  const q = { w: rawQw, x: rawQx, y: rawQy, z: rawQz };
+
+  let qw, qx, qy, qz;
+  if (isCalibrated) {
+    // q_result = q_calib_inverse * q_current
+    const cw = calQw, cx = -calQx, cy = -calQy, cz = -calQz; // conjugate
+    qw = cw*q.w - cx*q.x - cy*q.y - cz*q.z;
+    qx = cw*q.x + cx*q.w + cy*q.z - cz*q.y;
+    qy = cw*q.y - cx*q.z + cy*q.w + cz*q.x;
+    qz = cw*q.z + cx*q.y - cy*q.x + cz*q.w;
+  } else {
+    qw = q.w; qx = q.x; qy = q.y; qz = q.z;
+  }
+
+  send({ qw, qx, qy, qz });
+}
+
+// ── Calibrate ──
+function calibrate() {
+  calAlpha = rawAlpha;
+  calBeta  = rawBeta;
+  calGamma = rawGamma;
+  calQw = rawQw; calQx = rawQx; calQy = rawQy; calQz = rawQz;
+  isCalibrated = true;
+  setMsg("✅ Calibrated! ตอนนี้ทิศทางนี้คือ 'ศูนย์'");
+}
+
+function resetCamera() {
+  send({ reset: true });
+  calAlpha = rawAlpha; calBeta = rawBeta; calGamma = rawGamma;
+  isCalibrated = false;
+  setMsg("↺ รีเซ็ต rotation กล้องใน Blender แล้ว");
+}
+
+// ── FPS counter ──
+function startFPSCounter() {
+  fpsCount = 0;
+  fpsTimer = setInterval(() => {
+    document.getElementById("fpsVal").textContent = fpsCount;
+    fpsCount = 0;
+  }, 1000);
+}
+function stopFPSCounter() {
+  if (fpsTimer) { clearInterval(fpsTimer); fpsTimer = null; }
+  document.getElementById("fpsVal").textContent = "0";
+}
+
+// ── Display ──
+function updateDisplay() {
+  document.getElementById("valAlpha").textContent = rawAlpha.toFixed(1);
+  document.getElementById("valBeta").textContent  = rawBeta.toFixed(1);
+  document.getElementById("valGamma").textContent = rawGamma.toFixed(1);
+  drawBall();
+}
+
+// Canvas orientation ball
+const ballCanvas = document.getElementById("ball");
+const ballCtx = ballCanvas.getContext("2d");
+
+function drawBall() {
+  const ctx = ballCtx;
+  const W = ballCanvas.width, H = ballCanvas.height;
+  const cx = W/2, cy = H/2, r = W/2 - 4;
+
+  ctx.clearRect(0, 0, W, H);
+
+  // Background circle
+  const grad = ctx.createRadialGradient(cx-r*0.2, cy-r*0.2, r*0.1, cx, cy, r);
+  grad.addColorStop(0, "#2a2d3a");
+  grad.addColorStop(1, "#0d0e14");
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI*2);
+  ctx.fillStyle = grad;
+  ctx.fill();
+
+  // Horizon line (affected by roll=gamma and pitch=beta)
+  const roll  = rawGamma * Math.PI / 180;
+  const pitch = rawBeta  * Math.PI / 180;
+
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(roll);
+
+  // Ground half
+  const pitchOffset = Math.sin(pitch) * r * 0.8;
+  ctx.beginPath();
+  ctx.rect(-r, pitchOffset, r*2, r*2);
+  ctx.clip();
+  const earthGrad = ctx.createLinearGradient(0, pitchOffset, 0, r);
+  earthGrad.addColorStop(0, "rgba(34,211,165,0.3)");
+  earthGrad.addColorStop(1, "rgba(34,211,165,0.05)");
+  ctx.beginPath();
+  ctx.arc(0, 0, r, 0, Math.PI*2);
+  ctx.fillStyle = earthGrad;
+  ctx.fill();
+  ctx.restore();
+
+  // Horizon line
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(roll);
+  const pitchOff = Math.sin(pitch) * r * 0.8;
+  ctx.beginPath();
+  ctx.moveTo(-r, pitchOff);
+  ctx.lineTo(r,  pitchOff);
+  ctx.strokeStyle = "#22d3a5";
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  ctx.restore();
+
+  // Center crosshair
+  ctx.strokeStyle = "rgba(255,255,255,0.6)";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(cx-8, cy); ctx.lineTo(cx+8, cy);
+  ctx.moveTo(cx, cy-8); ctx.lineTo(cx, cy+8);
+  ctx.stroke();
+
+  // Border
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI*2);
+  ctx.strokeStyle = "#2a2d3a";
+  ctx.lineWidth = 2;
+  ctx.stroke();
+}
+
+function setStatus(cls, text) {
+  const pill = document.getElementById("statusPill");
+  pill.className = "status-pill " + cls;
+  document.getElementById("statusText").textContent = text;
+}
+
+function setMsg(msg) {
+  document.getElementById("msgLog").textContent = msg;
+}
+
+// ── Auto-detect local IP hint ──
+window.addEventListener("load", () => {
+  // Try to guess saved IP
+  const saved = localStorage.getItem("phonecam_ip");
+  if (saved) document.getElementById("ipInput").value = saved;
+  drawBall();
+});
+
+document.getElementById("ipInput").addEventListener("change", e => {
+  localStorage.setItem("phonecam_ip", e.target.value);
+});
+</script>
+</body>
+</html>
